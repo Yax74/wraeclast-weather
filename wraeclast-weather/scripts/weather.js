@@ -1,4 +1,4 @@
-// Foundry VTT Wraeclast Weather System (Updated with Sidebar Button Fix)
+// Foundry VTT Wraeclast Weather System (Improved)
 
 // Module Settings
 Hooks.once('init', () => {
@@ -38,7 +38,6 @@ Hooks.once('init', () => {
 
 Hooks.once('ready', () => {
   game.wraeclastWeather = async function () {
-    // Weather Data Tables
     const weatherTable = [
       { roll: 2, desc: "Bitterly Cold", temp: "-24 + 1d6" },
       { roll: 3, desc: "Extremely Cold", temp: "-19 + 1d6" },
@@ -99,17 +98,21 @@ Hooks.once('ready', () => {
     let currentMonth = game.settings.get("wraeclast-weather", "defaultSeason");
 
     if (useSC && game.modules.get("foundryvtt-simple-calendar")?.active) {
-      const api = game.modules.get("foundryvtt-simple-calendar")?.api;
-      if (api) {
-        const monthData = api.currentMonth();
-        currentMonth = monthData.name;
-      }
+      const api = game.modules.get("foundryvtt-simple-calendar")?.api?.simpleCalendar;
+      const monthData = api?.activeCalendar?.currentMonth;
+      if (monthData?.name) currentMonth = monthData.name;
     } else {
       currentMonth = await new Promise(resolve => {
         new Dialog({
           title: "Select Month",
           content: `<select id="month-select">${months.map(m => `<option>${m}</option>`).join("")}</select>`,
-          buttons: { ok: { label: "OK", callback: html => resolve(html.find("#month-select").val()) } }
+          buttons: {
+            ok: {
+              label: "OK",
+              callback: html => resolve(html.find("#month-select").val())
+            }
+          },
+          close: () => resolve(currentMonth) // fallback to default
         }).render(true);
       });
     }
@@ -119,7 +122,13 @@ Hooks.once('ready', () => {
       new Dialog({
         title: "Select Terrain",
         content: `<select id="terrain-select">${terrains.map(t => `<option>${t}</option>`).join("")}</select>`,
-        buttons: { ok: { label: "OK", callback: html => resolve(html.find("#terrain-select").val()) } }
+        buttons: {
+          ok: {
+            label: "OK",
+            callback: html => resolve(html.find("#terrain-select").val())
+          }
+        },
+        close: () => resolve(game.settings.get("wraeclast-weather", "defaultTerrain"))
       }).render(true);
     });
 
@@ -127,12 +136,19 @@ Hooks.once('ready', () => {
     const seasonalDiceRoll = await new Roll(seasonalRolls[currentMonth]).roll({ async: true });
     const adjustedTempRoll = seasonalDiceRoll.total + terrainMod;
     const weather = weatherTable.find(w => adjustedTempRoll <= w.roll) || weatherTable[weatherTable.length - 1];
-    const exactTempRoll = await new Roll(weather.temp).roll({ async: true });
+
+    let exactTemp = "???";
+    try {
+      const tempRoll = await new Roll(weather.temp).roll({ async: true });
+      exactTemp = tempRoll.total;
+    } catch (e) {
+      ui.notifications.error(`Invalid temperature roll: ${weather.temp}`);
+    }
 
     let cloudRoll = await new Roll(`1d20+${terrainMod}`).roll({ async: true });
     const cloudWeather = cloudPrecipitationTable.find(w => cloudRoll.total <= w.roll) || cloudPrecipitationTable[cloudPrecipitationTable.length - 1];
     let precipitation = cloudWeather.precipitation;
-    if ((precipitation.includes("Snow") || precipitation.includes("Rain")) && exactTempRoll.total <= 0) {
+    if ((precipitation.includes("Snow") || precipitation.includes("Rain")) && exactTemp <= 0) {
       precipitation = cloudWeather.precipitation.replace("Rain", "Snow");
     } else if (precipitation.includes("Snow")) {
       precipitation = precipitation.replace("Snow", "Rain");
@@ -143,7 +159,7 @@ Hooks.once('ready', () => {
 
     ChatMessage.create({
       content: `<strong>Today's Weather:</strong><br>
-      <em>${weather.desc}</em> (${exactTempRoll.total} °C)<br>
+      <em>${weather.desc}</em> (${exactTemp} °C)<br>
       <strong>Cloud Cover:</strong> ${cloudWeather.cloud}<br>
       <strong>Precipitation:</strong> ${precipitation}<br>
       <strong>Wind:</strong> ${windResult.wind}<br>
@@ -155,7 +171,7 @@ Hooks.once('ready', () => {
 // Add Weather Button to Journal Sidebar
 Hooks.on("renderJournalDirectory", async (app, html, data) => {
   const button = document.createElement("button");
-  button.classList.add("wraeclast-weather", "create-entry");
+  button.classList.add("wraeclast-weather-button");
   button.innerHTML = `<i class="fas fa-cloud-sun"></i>`;
   button.title = "Generate Weather";
   button.addEventListener("click", () => {
