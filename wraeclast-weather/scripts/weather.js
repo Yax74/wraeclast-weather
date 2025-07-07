@@ -1,6 +1,5 @@
-""// Foundry VTT Wraeclast Weather System (Full Script with Sidebar Icon + Simple Calendar Integration)
+// Foundry VTT Wraeclast Weather System (Full Script with Sidebar Icon + Simple Calendar Integration)
 
-// Module Settings
 Hooks.once('init', () => {
   game.settings.register("wraeclast-weather", "defaultSeason", {
     name: "Default Season",
@@ -38,8 +37,6 @@ Hooks.once('init', () => {
 
 Hooks.once('ready', () => {
   game.wraeclastWeather = async function () {
-
-    // Weather Data Tables
     const weatherTable = [
       { roll: 2, desc: "Bitterly Cold", temp: "-24 + 1d6" },
       { roll: 3, desc: "Extremely Cold", temp: "-19 + 1d6" },
@@ -95,7 +92,6 @@ Hooks.once('ready', () => {
       { roll: 20, wind: "Dangerous Winds" }
     ];
 
-    // Month Selection
     let useSC = game.settings.get("wraeclast-weather", "useSimpleCalendar");
     let months = Object.keys(seasonalRolls);
     let currentMonth = game.settings.get("wraeclast-weather", "defaultSeason");
@@ -116,7 +112,6 @@ Hooks.once('ready', () => {
       });
     }
 
-    // Terrain selection
     const terrains = Object.keys(terrainModifiers);
     const currentTerrain = await new Promise(resolve => {
       new Dialog({
@@ -146,21 +141,23 @@ Hooks.once('ready', () => {
 
     ChatMessage.create({
       content: `<strong>Today's Weather:</strong><br>
-      <em>${weather.desc}</em> (${exactTempRoll.total} °C)<br>
-      <strong>Cloud Cover:</strong> ${cloudWeather.cloud}<br>
-      <strong>Precipitation:</strong> ${precipitation}<br>
-      <strong>Wind:</strong> ${windResult.wind}<br>
-      <hr><small>Month: ${currentMonth} | Terrain: ${currentTerrain}</small>`
+        <em>${weather.desc}</em> (${exactTempRoll.total} °C)<br>
+        <strong>Cloud Cover:</strong> ${cloudWeather.cloud}<br>
+        <strong>Precipitation:</strong> ${precipitation}<br>
+        <strong>Wind:</strong> ${windResult.wind}<br>
+        <hr><small>Month: ${currentMonth} | Terrain: ${currentTerrain}</small>`
     });
   };
 });
 
-// Add Weather Button to Journal Sidebar
+// Add weather icon to Journal sidebar
 Hooks.on("renderJournalDirectory", async (app, html, data) => {
-  const button = $(`<button class="wraeclast-weather"><i class="fas fa-cloud-sun"></i> Weather</button>`);
-  button.click(() => {
-    if (game.wraeclastWeather) game.wraeclastWeather();
-    else ui.notifications.warn("Wraeclast Weather module not ready.");
-  });
-  html.find(".header-actions").prepend(button);
+  const button = $(`<button class="wraeclast-weather-btn"><i class="fas fa-cloud-sun"></i></button>`)
+    .attr("title", "Generate Weather")
+    .css({ "margin-left": "5px", "padding": "2px 6px" })
+    .click(() => {
+      if (game.wraeclastWeather) game.wraeclastWeather();
+      else ui.notifications.warn("Wraeclast Weather module not ready.");
+    });
+  html.closest(".directory").find(".directory-header .header-actions").prepend(button);
 });
