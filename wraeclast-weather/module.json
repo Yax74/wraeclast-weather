@@ -15,5 +15,5 @@
     "minimum": "10",
     "verified": "12"
   },
-  "esmodules": ["wraeclast-weather/scripts/weather.js"]
+  "esmodules": ["scripts/weather.js"]
 }
