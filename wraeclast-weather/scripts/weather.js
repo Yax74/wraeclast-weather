@@ -1,5 +1,6 @@
-// Foundry VTT Wraeclast Weather System (Full Script with Sidebar Icon + Simple Calendar Integration)
+// Foundry VTT Wraeclast Weather System (Updated with Sidebar Button Fix)
 
+// Module Settings
 Hooks.once('init', () => {
   game.settings.register("wraeclast-weather", "defaultSeason", {
     name: "Default Season",
@@ -37,6 +38,7 @@ Hooks.once('init', () => {
 
 Hooks.once('ready', () => {
   game.wraeclastWeather = async function () {
+    // Weather Data Tables
     const weatherTable = [
       { roll: 2, desc: "Bitterly Cold", temp: "-24 + 1d6" },
       { roll: 3, desc: "Extremely Cold", temp: "-19 + 1d6" },
@@ -141,23 +143,26 @@ Hooks.once('ready', () => {
 
     ChatMessage.create({
       content: `<strong>Today's Weather:</strong><br>
-        <em>${weather.desc}</em> (${exactTempRoll.total} °C)<br>
-        <strong>Cloud Cover:</strong> ${cloudWeather.cloud}<br>
-        <strong>Precipitation:</strong> ${precipitation}<br>
-        <strong>Wind:</strong> ${windResult.wind}<br>
-        <hr><small>Month: ${currentMonth} | Terrain: ${currentTerrain}</small>`
+      <em>${weather.desc}</em> (${exactTempRoll.total} °C)<br>
+      <strong>Cloud Cover:</strong> ${cloudWeather.cloud}<br>
+      <strong>Precipitation:</strong> ${precipitation}<br>
+      <strong>Wind:</strong> ${windResult.wind}<br>
+      <hr><small>Month: ${currentMonth} | Terrain: ${currentTerrain}</small>`
     });
   };
 });
 
-// Add weather icon to Journal sidebar
+// Add Weather Button to Journal Sidebar
 Hooks.on("renderJournalDirectory", async (app, html, data) => {
-  const button = $(`<button class="wraeclast-weather-btn"><i class="fas fa-cloud-sun"></i></button>`)
-    .attr("title", "Generate Weather")
-    .css({ "margin-left": "5px", "padding": "2px 6px" })
-    .click(() => {
-      if (game.wraeclastWeather) game.wraeclastWeather();
-      else ui.notifications.warn("Wraeclast Weather module not ready.");
-    });
-  html.closest(".directory").find(".directory-header .header-actions").prepend(button);
+  const button = document.createElement("button");
+  button.classList.add("wraeclast-weather", "create-entry");
+  button.innerHTML = `<i class="fas fa-cloud-sun"></i>`;
+  button.title = "Generate Weather";
+  button.addEventListener("click", () => {
+    if (game.wraeclastWeather) game.wraeclastWeather();
+    else ui.notifications.warn("Wraeclast Weather module not ready.");
+  });
+
+  const actions = html[0].querySelector(".header-actions");
+  if (actions) actions.prepend(button);
 });
