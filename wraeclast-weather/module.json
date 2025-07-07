@@ -1,6 +1,19 @@
 {
+  "id": "wraeclast-weather",
+  "title": "Wraeclast Weather System",
+  "description": "Dynamic weather system for Foundry VTT based on custom seasons, terrain, and precipitation logic.",
+  "version": "1.0.0",
+  "authors": [
+    {
+      "name": "Yax74"
+    }
+  ],
   "url": "https://github.com/Yax74/wraeclast-weather",
   "manifest": "https://raw.githubusercontent.com/Yax74/wraeclast-weather/main/wraeclast-weather/module.json",
-  "download": "https://github.com/Yax74/wraeclast-weather/archive/refs/heads/main.zip"
+  "download": "https://github.com/Yax74/wraeclast-weather/archive/refs/heads/main.zip",
+  "compatibility": {
+    "minimum": "10",
+    "verified": "12"
+  },
+  "esmodules": ["wraeclast-weather/scripts/weather.js"]
 }
-
