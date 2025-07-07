@@ -1,43 +1,21 @@
-// Foundry VTT Wraeclast Weather System (Improved)
+// Foundry VTT Wraeclast Weather System — V12-compatible
 
-// Module Settings
 Hooks.once('init', () => {
   game.settings.register("wraeclast-weather", "defaultSeason", {
-    name: "Default Season",
-    scope: "world",
-    config: true,
-    type: String,
-    default: "Azmeri"
+    name: "Default Season", scope: "world", config: true, type: String, default: "Azmeri"
   });
-
   game.settings.register("wraeclast-weather", "defaultTerrain", {
-    name: "Default Terrain",
-    scope: "world",
-    config: true,
-    type: String,
-    default: "Plains & Grasslands"
+    name: "Default Terrain", scope: "world", config: true, type: String, default: "Plains & Grasslands"
   });
-
-  game.settings.register("wraeclast-weather", "numberOfMonths", {
-    name: "Number of Months in Year",
-    scope: "world",
-    config: true,
-    type: Number,
-    default: 12
-  });
-
   game.settings.register("wraeclast-weather", "useSimpleCalendar", {
     name: "Use Simple Calendar Integration",
     hint: "Enable this to pull the current month from Simple Calendar",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: false
+    scope: "world", config: true, type: Boolean, default: false
   });
 });
 
 Hooks.once('ready', () => {
-  game.wraeclastWeather = async function () {
+  game.wraeclastWeather = async () => {
     const weatherTable = [
       { roll: 2, desc: "Bitterly Cold", temp: "-24 + 1d6" },
       { roll: 3, desc: "Extremely Cold", temp: "-19 + 1d6" },
@@ -93,69 +71,61 @@ Hooks.once('ready', () => {
       { roll: 20, wind: "Dangerous Winds" }
     ];
 
-    let useSC = game.settings.get("wraeclast-weather", "useSimpleCalendar");
-    let months = Object.keys(seasonalRolls);
     let currentMonth = game.settings.get("wraeclast-weather", "defaultSeason");
-
-    if (useSC && game.modules.get("foundryvtt-simple-calendar")?.active) {
+    if (game.settings.get("wraeclast-weather", "useSimpleCalendar")
+        && game.modules.get("foundryvtt-simple-calendar")?.active) {
       const api = game.modules.get("foundryvtt-simple-calendar")?.api?.simpleCalendar;
       const monthData = api?.activeCalendar?.currentMonth;
       if (monthData?.name) currentMonth = monthData.name;
     } else {
-      currentMonth = await new Promise(resolve => {
-        new Dialog({
-          title: "Select Month",
-          content: `<select id="month-select">${months.map(m => `<option>${m}</option>`).join("")}</select>`,
-          buttons: {
-            ok: {
-              label: "OK",
-              callback: html => resolve(html.find("#month-select").val())
-            }
-          },
-          close: () => resolve(currentMonth) // fallback to default
-        }).render(true);
-      });
+      try {
+        const sel = await foundry.applications.api.DialogV2.prompt({
+          window: { title: "Select Month" },
+          content: `<select name="selection">${Object.keys(seasonalRolls)
+                   .map(m => `<option>${m}</option>`).join("")}</select>`,
+          rejectClose: false
+        });
+        if (sel) currentMonth = sel;
+      } catch {}
     }
 
-    const terrains = Object.keys(terrainModifiers);
-    const currentTerrain = await new Promise(resolve => {
-      new Dialog({
-        title: "Select Terrain",
-        content: `<select id="terrain-select">${terrains.map(t => `<option>${t}</option>`).join("")}</select>`,
-        buttons: {
-          ok: {
-            label: "OK",
-            callback: html => resolve(html.find("#terrain-select").val())
-          }
-        },
-        close: () => resolve(game.settings.get("wraeclast-weather", "defaultTerrain"))
-      }).render(true);
-    });
+    let currentTerrain = game.settings.get("wraeclast-weather", "defaultTerrain");
+    try {
+      const selT = await foundry.applications.api.DialogV2.prompt({
+        window: { title: "Select Terrain" },
+        content: `<select name="selection">${Object.keys(terrainModifiers)
+                 .map(t => `<option>${t}</option>`).join("")}</select>`,
+        rejectClose: false
+      });
+      if (selT) currentTerrain = selT;
+    } catch {}
 
     const terrainMod = terrainModifiers[currentTerrain] || 0;
-    const seasonalDiceRoll = await new Roll(seasonalRolls[currentMonth]).roll({ async: true });
-    const adjustedTempRoll = seasonalDiceRoll.total + terrainMod;
-    const weather = weatherTable.find(w => adjustedTempRoll <= w.roll) || weatherTable[weatherTable.length - 1];
+    const seasonalRoll = await new Roll(seasonalRolls[currentMonth]).roll({ async: true });
+    const adjRoll = seasonalRoll.total + terrainMod;
+    const weather = weatherTable.find(w => adjRoll <= w.roll) ||
+                    weatherTable[weatherTable.length - 1];
 
-    let exactTemp = "???";
+    let exactTemp = "??";
     try {
-      const tempRoll = await new Roll(weather.temp).roll({ async: true });
-      exactTemp = tempRoll.total;
-    } catch (e) {
-      ui.notifications.error(`Invalid temperature roll: ${weather.temp}`);
+      const temp = await new Roll(weather.temp).roll({ async: true });
+      exactTemp = temp.total;
+    } catch {
+      ui.notifications.error(`Invalid temperature formula: ${weather.temp}`);
     }
 
-    let cloudRoll = await new Roll(`1d20+${terrainMod}`).roll({ async: true });
-    const cloudWeather = cloudPrecipitationTable.find(w => cloudRoll.total <= w.roll) || cloudPrecipitationTable[cloudPrecipitationTable.length - 1];
+    const cloudRoll = await new Roll(`1d20+${terrainMod}`).roll({ async: true });
+    const cloudWeather = cloudPrecipitationTable.find(w => cloudRoll.total <= w.roll) ||
+                         cloudPrecipitationTable[cloudPrecipitationTable.length - 1];
     let precipitation = cloudWeather.precipitation;
-    if ((precipitation.includes("Snow") || precipitation.includes("Rain")) && exactTemp <= 0) {
-      precipitation = cloudWeather.precipitation.replace("Rain", "Snow");
-    } else if (precipitation.includes("Snow")) {
+    if ((precipitation.includes("Rain") || precipitation.includes("Snow")) && exactTemp <= 0)
+      precipitation = precipitation.replace("Rain", "Snow");
+    else if (precipitation.includes("Snow"))
       precipitation = precipitation.replace("Snow", "Rain");
-    }
 
-    let windRoll = await new Roll(`1d20+${terrainMod}`).roll({ async: true });
-    const windResult = windTable.find(w => windRoll.total <= w.roll) || windTable[windTable.length - 1];
+    const windRoll = await new Roll(`1d20+${terrainMod}`).roll({ async: true });
+    const windResult = windTable.find(w => windRoll.total <= w.roll) ||
+                       windTable[windTable.length - 1];
 
     ChatMessage.create({
       content: `<strong>Today's Weather:</strong><br>
@@ -168,17 +138,23 @@ Hooks.once('ready', () => {
   };
 });
 
-// Add Weather Button to Journal Sidebar
-Hooks.on("renderJournalDirectory", async (app, html, data) => {
-  const button = document.createElement("button");
-  button.classList.add("wraeclast-weather-button");
-  button.innerHTML = `<i class="fas fa-cloud-sun"></i>`;
-  button.title = "Generate Weather";
-  button.addEventListener("click", () => {
-    if (game.wraeclastWeather) game.wraeclastWeather();
-    else ui.notifications.warn("Wraeclast Weather module not ready.");
-  });
+// Inject into JournalDirectory header
+Hooks.on("getApplicationHeaderButtons", (app, buttons) => {
+  if (app instanceof JournalDirectory) {
+    buttons.unshift({
+      label: "Weather",
+      class: "wraeclast-weather-button",
+      icon: "fas fa-cloud-sun",
+      onclick: () => game.wraeclastWeather?.()
+    });
+  }
+});
 
-  const actions = html[0].querySelector(".header-actions");
-  if (actions) actions.prepend(button);
+// Inject into Simple Calendar UI
+Hooks.on("renderSimpleCalendarApp", (app, html) => {
+  if (html.find(".wraeclast-weather-button").length) return;
+  const btn = $(`<button class="wraeclast-weather-button" title="Generate Weather">
+    <i class="fas fa-cloud-sun"></i></button>`);
+  btn.on('click', () => game.wraeclastWeather?.());
+  html.find(".sc-controls .flexrow").last()?.append(btn);
 });
